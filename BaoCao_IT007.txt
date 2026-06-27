@@ -1,0 +1,312 @@
+######################################
+University of Information Technology
+IT007 - Operating System
+<Your name>, <Your Student ID>
+######################################
+
+==================================================================
+BAI 1: MOI QUAN HE CHA-CON GIUA CAC TIEN TRINH
+==================================================================
+
+a. Cay quan he parent-child cua cac tien trinh
+
+Dua vao bang PID/PPID da cho, ta xay dung duoc cay tien trinh nhu sau:
+
+1 (init)
+ └─ 86  WindowServer            (UID 88)
+     ├─ 281  iTunes             (UID 501)
+     ├─ 282  Terminal           (UID 501)
+     │    └─ 287  login         (UID 0)
+     │         └─ 293  -bash    (UID 501)
+     │              ├─ 461  firefox-bin   (UID 501)
+     │              └─ 751  Aquamacs      (UID 501)
+     ├─ 531  Safari             (UID 501)
+     └─ 726  Mail               (UID 501)
+
+Giai thich cach doc:
+- Tien trinh PID=86 (WindowServer) co PPID=1, tuc la con truc tiep cua
+  tien trinh init (tien trinh goc cua he thong).
+- WindowServer la cha cua 4 tien trinh: iTunes (281), Terminal (282),
+  Safari (531) va Mail (726), vi ca 4 deu co PPID=86.
+- Terminal (282) la cha cua login (287) vi PPID cua 287 = 282.
+- login (287) la cha cua -bash (293) vi PPID cua 293 = 287.
+- -bash (293) la cha cua firefox-bin (461) va Aquamacs (751) vi ca hai
+  deu co PPID=293.
+
+b. Dung lenh ps de tim tien trinh cha cua mot tien trinh theo PID
+
+Cach 1 - dung tuy chon -o de chi lay cot PPID:
+    ps -o ppid= -p <PID>
+Vi du tim cha cua tien trinh co PID=293:
+    ps -o ppid= -p 293
+Ket qua tra ve chinh la PPID, vi du "287". Sau do dung tiep:
+    ps -o pid,ppid,comm -p 287
+de xem ten va thong tin chi tiet cua tien trinh cha do.
+
+Cach 2 - dung ps ket hop grep:
+    ps -ef | grep <PID>
+roi doc cot PPID (cot thu 3 trong output cua ps -ef) tuong ung voi dong
+co PID can tim.
+
+Cach 3 - xem nhanh toan bo cay tien trinh:
+    ps -ejH
+hoac
+    ps axjf      (tren Linux)
+cho phep nhin truc quan cau truc cha-con thong qua thu tu thut le dong.
+
+c. Cai dat va su dung lenh pstree
+
+Cai dat (neu chua co):
+- Tren Debian/Ubuntu:      sudo apt-get install psmisc
+- Tren CentOS/RHEL/Fedora: sudo yum install psmisc
+- Tren macOS (qua Homebrew): brew install pstree
+
+Cach dung pstree de tim tien trinh cha cua mot PID:
+
+1) Hien thi cay tien trinh bat dau tu mot PID cho truoc (xem cac con):
+       pstree -p <PID>
+   Tuy chon -p in kem PID ben canh ten tien trinh.
+
+2) De tim CHA (va toan bo to tien) cua mot tien trinh theo PID, dung
+   tuy chon -s (show parents):
+       pstree -s -p <PID>
+   Lenh nay se in ra duong di tu tien trinh goc (init/systemd) xuong toi
+   tien trinh co PID duoc chi dinh, nho do thay duoc ngay tien trinh cha
+   truc tiep (vd: dung -s 293 se cho thay nhanh init -> ... -> bash(293)).
+
+3) Co the ket hop them -u de xem UID, -a de xem tham so dong lenh:
+       pstree -s -u -a -p 293
+
+
+==================================================================
+BAI 2: CHUONG TRINH FORK() IN RA KET QUA GI?
+==================================================================
+
+Code:
+    pid_t pid;
+    int num_coconuts = 17;
+    pid = fork();
+    if (pid == 0) {
+        num_coconuts = 42;
+        exit(0);
+    } else {
+        wait(NULL);
+    }
+    printf("I see %d coconuts!\n", num_coconuts);
+    exit(0);
+
+Ket qua in ra: 
+
+    I see 17 coconuts!
+
+va dong nay CHI duoc in MOT LAN DUY NHAT (boi tien trinh cha).
+
+Giai thich:
+
+1) fork() tao ra mot tien trinh con la BAN SAO doc lap cua tien trinh
+   cha tai thoi diem goi fork(). Tu thoi diem do, hai tien trinh co hai
+   khong gian dia chi (address space) RIENG BIET, hoan toan tach roi
+   nhau (co che copy-on-write o muc he dieu hanh nhung ve mat logic
+   moi tien trinh co bien rieng). Bien num_coconuts trong tien trinh con
+   chi la BAN SAO cua bien num_coconuts trong tien trinh cha.
+
+2) Sau fork():
+   - Tien trinh con nhan duoc gia tri tra ve pid == 0, nen vao nhanh
+     if: gan num_coconuts = 42 (chi thay doi ban sao CUA RIENG NO), roi
+     goi exit(0) NGAY LAP TUC -> tien trinh con KET THUC tai day va
+     KHONG BAO GIO chay den cau lenh printf ben duoi. Do do gia tri 42
+     khong bao gio duoc in ra.
+   - Tien trinh cha nhan duoc gia tri tra ve pid > 0 (la PID cua con),
+     nen vao nhanh else: goi wait(NULL) de cho tien trinh con ket thuc
+     truoc (tranh tien trinh con tro thanh zombie va dam bao thu tu).
+     Sau khi wait() tra ve, tien trinh cha tiep tuc chay xuong cau lenh
+     printf, luc nay bien num_coconuts CUA NO van con gia tri 17 (vi
+     no khong bi anh huong boi viec con thay doi ban sao cua minh).
+
+3) Vi vay chuong trinh chi in ra dung mot dong "I see 17 coconuts!" do
+   tien trinh cha thuc hien, the hien ro rang nguyen ly: sau fork(),
+   bo nho (bien) cua hai tien trinh la doc lap, thay doi o tien trinh
+   nay khong lam thay doi gia tri tuong ung o tien trinh kia.
+
+
+==================================================================
+BAI 3: CAC HAM PTHREAD_ATTR_ THAY DOI THUOC TINH CUA POSIX THREAD
+==================================================================
+
+Truoc khi tao thread bang pthread_create(), ta co the cau hinh cac
+thuoc tinh cua thread thong qua mot bien kieu pthread_attr_t. Cac ham
+chinh (tat ca bat dau bang pthread_attr_):
+
+1) pthread_attr_init(pthread_attr_t *attr)
+   Khoi tao doi tuong attr voi cac gia tri mac dinh cua he thong.
+   Phai goi truoc khi dung bat ky ham set/get nao khac.
+
+2) pthread_attr_destroy(pthread_attr_t *attr)
+   Giai phong tai nguyen lien quan den attr sau khi da dung xong
+   (khong con dung de tao thread nao nua).
+
+3) pthread_attr_setdetachstate() / pthread_attr_getdetachstate()
+   Thiet lap/doc trang thai "detach":
+   - PTHREAD_CREATE_JOINABLE (mac dinh): thread chinh phai goi
+     pthread_join() de thu hoi tai nguyen cua thread con khi no ket
+     thuc, neu khong thread con se ton tai duoi dang "zombie thread".
+   - PTHREAD_CREATE_DETACHED: thread tu dong giai phong tai nguyen
+     khi ket thuc, khong can va khong duoc goi pthread_join().
+
+4) pthread_attr_setschedpolicy() / pthread_attr_getschedpolicy()
+   Thiet lap chinh sach lap lich CPU cho thread: SCHED_OTHER (mac
+   dinh, chia se thoi gian thong thuong), SCHED_FIFO hoac SCHED_RR
+   (thoi gian thuc - realtime), anh huong thu tu/uu tien thread duoc
+   CPU cap phat thuc thi.
+
+5) pthread_attr_setschedparam() / pthread_attr_getschedparam()
+   Thiet lap tham so lap lich (vd: do uu tien - sched_priority) di
+   kem voi chinh sach lap lich da chon o tren.
+
+6) pthread_attr_setinheritsched() / pthread_attr_getinheritsched()
+   Quyet dinh thread moi co KE THUA chinh sach/tham so lap lich tu
+   thread cha (PTHREAD_INHERIT_SCHED) hay dung gia tri rieng da set
+   trong attr (PTHREAD_EXPLICIT_SCHED).
+
+7) pthread_attr_setscope() / pthread_attr_getscope()
+   Thiet lap pham vi tranh chap CPU: PTHREAD_SCOPE_SYSTEM (thread
+   tranh chap CPU truc tiep voi cac thread khac trong toan he thong)
+   hoac PTHREAD_SCOPE_PROCESS (tranh chap trong noi bo tien trinh).
+
+8) pthread_attr_setstacksize() / pthread_attr_getstacksize()
+   Thiet lap/doc kich thuoc vung nho stack danh cho thread (tinh
+   bang byte). Huu ich khi thread can stack lon hon (de qui sau) hoac
+   muon gioi han bo nho khi tao rat nhieu thread.
+
+9) pthread_attr_setstack() / pthread_attr_getstack()
+   Thiet lap/doc dia chi va kich thuoc vung nho ma nguoi dung tu cap
+   phat de dung lam stack cho thread (thay vi de he thong tu cap phat).
+
+10) pthread_attr_setguardsize() / pthread_attr_getguardsize()
+    Thiet lap/doc kich thuoc vung "guard" (vung bao ve) duoc them vao
+    cuoi stack de phat hien tran stack (stack overflow).
+
+Vi du minh hoa: tac dong cua thuoc tinh DETACH STATE
+------------------------------------------------------------
+/* exercise_3_detach.c - minh hoa pthread_attr_setdetachstate */
+#include <stdio.h>
+#include <pthread.h>
+#include <unistd.h>
+
+void *thread_func(void *arg) {
+    printf("Thread con dang chay, sap ket thuc...\n");
+    return NULL;
+}
+
+int main() {
+    pthread_t tid;
+    pthread_attr_t attr;
+
+    pthread_attr_init(&attr);                 /* (1) khoi tao attr      */
+    pthread_attr_setdetachstate(&attr,
+        PTHREAD_CREATE_DETACHED);              /* (2) dat che do detached:
+                                                   thread se tu giai phong
+                                                   tai nguyen khi ket thuc,
+                                                   khong can join          */
+
+    pthread_create(&tid, &attr, thread_func, NULL);
+    pthread_attr_destroy(&attr);               /* (3) huy attr, da dung xong */
+
+    /* Vi thread duoc tao o che do DETACHED, neu goi pthread_join(tid,..)
+       o day se tra ve loi EINVAL. Thay vao do chuong trinh chinh chi
+       can cho du lau de thread con kip in thong bao roi ket thuc.    */
+    sleep(1);
+    printf("Main ket thuc.\n");
+    return 0;
+}
+------------------------------------------------------------
+Giai thich: neu dat PTHREAD_CREATE_JOINABLE (mac dinh) ma main() ket
+thuc (hoac thoat) ma khong goi pthread_join(), tai nguyen cua thread se
+khong duoc thu hoi dung cach. Nguoc lai, voi PTHREAD_CREATE_DETACHED,
+he dieu hanh tu dong don tai nguyen cua thread ngay khi thread ket
+thuc, giup don gian hoa quan ly trong cac truong hop khong can lay ket
+qua tra ve cua thread (khong can pthread_join).
+
+
+==================================================================
+BAI 4: CHUONG TRINH MO VIM VA XU LY CTRL+C
+==================================================================
+
+/*######################################
+University of Information Technology
+IT007 Operating System
+<Your name>, <Your Student ID>
+File: exercise_4.c
+######################################*/
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <signal.h>
+#include <sys/wait.h>
+
+pid_t child_pid; /* PID cua tien trinh con chay vim, dung global de
+                     ham xu ly signal co the truy cap duoc */
+
+/* Ham xu ly tin hieu SIGINT (Ctrl+C) */
+void handle_sigint(int sig) {
+    /* (c) Tat vim editor: gui tin hieu SIGTERM cho tien trinh con
+       dang chay vim de yeu cau no ket thuc                         */
+    kill(child_pid, SIGTERM);
+    wait(NULL); /* cho vim ket thuc hoan toan, tranh zombie */
+
+    /* (d) In ra dong thong bao khi nguoi dung nhan Ctrl+C */
+    printf("You are pressed CTRL+C! Goodbye!\n");
+    exit(0);
+}
+
+int main(int argc, char *argv[]) {
+    /* (a) In dong chao mung dau tien */
+    printf("Welcome to IT007, I am <Your_Student_ID>!\n");
+
+    /* Dang ky ham xu ly rieng cho tin hieu SIGINT (Ctrl+C) thay cho
+       hanh vi mac dinh la thoat chuong trinh ngay lap tuc            */
+    signal(SIGINT, handle_sigint);
+
+    /* (b) Tao tien trinh con de mo tep abcd.txt bang vim */
+    child_pid = fork();
+
+    if (child_pid == 0) {
+        /* Tien trinh con: thay the hinh anh tien trinh hien tai bang
+           chuong trinh vim, mo file abcd.txt de chinh sua             */
+        execlp("vim", "vim", "abcd.txt", NULL);
+
+        /* Chi chay den day neu execlp() loi (vd: khong tim thay vim) */
+        perror("execlp that bai");
+        exit(1);
+    } else if (child_pid > 0) {
+        /* Tien trinh cha: cho tien trinh con (vim) ket thuc binh
+           thuong (vd: nguoi dung tu :wq trong vim). Neu nguoi dung
+           nhan Ctrl+C, ham handle_sigint() se duoc goi truoc, tat
+           vim va thoat chuong trinh tai do.                          */
+        wait(NULL);
+        printf("Vim da duoc dong (thoat binh thuong).\n");
+    } else {
+        perror("fork that bai");
+        exit(1);
+    }
+
+    return 0;
+}
+
+Giai thich logic hoat dong:
+1) Chuong trinh in dong chao "Welcome to IT007, I am <MSSV>!" truoc
+   tien (yeu cau a).
+2) signal(SIGINT, handle_sigint) duoc dang ky de "bat" su kien nguoi
+   dung nhan Ctrl+C tai tien trinh cha, thay vi de he thong tu dong
+   ket thuc chuong trinh nhu mac dinh.
+3) fork() tao tien trinh con; tien trinh con dung execlp() de NAP
+   chuong trinh vim va mo file abcd.txt (yeu cau b).
+4) Tien trinh cha goi wait(NULL) de cho vim chay; trong luc nay neu
+   nguoi dung nhan Ctrl+C tai terminal, tin hieu SIGINT duoc gui den
+   tien trinh cha, kich hoat handle_sigint():
+   - Ham nay goi kill(child_pid, SIGTERM) de TAT vim (yeu cau c).
+   - Sau do in ra "You are pressed CTRL+C! Goodbye!" va thoat chuong
+     trinh (yeu cau d).
+5) Neu nguoi dung khong nhan Ctrl+C ma tu thoat vim binh thuong (vd
+   go :wq), wait(NULL) tra ve nhu thuong va chuong trinh in them
+   thong bao da dong vim roi ket thuc tu nhien.
