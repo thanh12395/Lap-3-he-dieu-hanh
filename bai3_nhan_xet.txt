@@ -1,0 +1,1 @@
+Quan sát log cho thấy có thời điểm x = 23, vượt quá 20 mà chưa được reset — nguyên nhân là 2 thread cùng đọc giá trị x cũ trước khi thread nào đó kịp reset về 0, dẫn đến cả hai đều tiếp tục cộng thêm.

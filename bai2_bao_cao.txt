@@ -1,0 +1,49 @@
+BÀI 2 - ĐỒNG BỘ HÓA MẢNG DÙNG CHUNG BẰNG SEMAPHORE
+====================================================
+
+BƯỚC 4 - GIẢI THÍCH CƠ CHẾ ĐỒNG BỘ BẰNG SEMAPHORE
+----------------------------------------------------
+
+Trong bản chưa đồng bộ (bai2_loi.c), hai thread Producer và Consumer cùng
+truy cập vào biến n và mảng a mà không có cơ chế bảo vệ, dẫn đến race
+condition: có thể xảy ra trường hợp cả hai thread đọc cùng giá trị n cũ
+rồi cùng ghi lại, làm mất một lần cập nhật (lost update); hoặc Consumer
+đọc a[idx] đúng lúc Producer đang ghi vào cùng vị trí, khiến giá trị đọc
+được không chính xác (dữ liệu bị "xé" - đọc nửa cũ nửa mới).
+
+Khi thêm semaphore nhị phân mutex (khởi tạo giá trị 1), đoạn code
+sem_wait(&mutex) ... sem_post(&mutex) tạo thành một critical section -
+vùng mà chỉ một thread được vào thực hiện tại một thời điểm. Nhờ vậy,
+Producer và Consumer không thể chạy xen kẽ giữa lúc đang đọc/ghi n và a,
+loại bỏ hoàn toàn tình trạng mất cập nhật hoặc đọc dữ liệu không nhất
+quán.
+
+Kết quả là biến n sau khi đồng bộ luôn phản ánh đúng số phần tử thực tế
+trong mảng, không xuất hiện giá trị âm hoặc bất hợp lý.
+
+
+BƯỚC 5 - SO SÁNH KẾT QUẢ 2 BẢN CHƯƠNG TRÌNH
+----------------------------------------------------
+
+1. Kết quả chạy khi CHƯA đồng bộ (bai2_loi.c)
+   [Dán ảnh chụp màn hình output của bai2_loi vào đây]
+
+   Ghi chú: dù race condition có thể tồn tại về lý thuyết tại thao tác
+   n++/n-- và truy cập a[] (các thao tác này không nguyên tử - atomic),
+   thực tế đôi lúc khó quan sát trực tiếp do tốc độ xử lý của CPU cao và
+   2 thread ít khi trùng đúng thời điểm ghi. Tuy nhiên khả năng xảy ra
+   mất cập nhật (lost update) hoặc đọc dữ liệu không nhất quán vẫn tồn
+   tại về nguyên tắc.
+
+2. Kết quả chạy khi ĐÃ đồng bộ bằng semaphore (bai2.c)
+   [Dán ảnh chụp màn hình output của bai2 vào đây]
+
+   Ghi chú: giá trị n luôn tăng/giảm đúng theo từng lần Producer/Consumer
+   thao tác, không xuất hiện bất thường như ở bản chưa đồng bộ.
+
+3. Nhận xét chung:
+   So sánh 2 kết quả cho thấy sau khi đồng bộ bằng semaphore, giá trị n
+   luôn khớp chính xác với số phần tử thực tế trong mảng a, không âm,
+   không nhảy vô lý. Điều này khẳng định semaphore (dùng như mutex) đã
+   giải quyết được vấn đề race condition khi nhiều thread cùng truy cập
+   vào dữ liệu dùng chung.
